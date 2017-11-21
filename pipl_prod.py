@@ -1,16 +1,27 @@
 import pandas as pd
 from piplapis.search import SearchAPIRequest
 from pandas import DataFrame
+import MySQLdb
+import urllib2
+from sqlalchemy import create_engine
+import config as cfg
 import numpy as np
-
 #global parameters
-filename = 'C:\Users\Herbie\sample_pop.csv'
-# business key
-# key = 'kq8birqerxjuvhuwccgm61jc'
-# premium key
-key = 'b0nomzyl3e8iui4ox6vn48zu'
+#filename = 'C:\Users\Herbie\sample_pop.csv'
+mysql_eng=cfg.mysql_prod
+
+# premium key.  Business_key = key
+key = cfg.pipl['p_key']
 match_min = 0.25
 user_parse_list=['dob','gender','emails','names','addresses','phones','jobs']
+
+db=MySQLdb.connect(host=mysql_eng['host'],user=mysql_eng['user'],passwd=mysql_eng['pass'],db=mysql_eng['db'],charset='utf8',use_unicode=True)
+cur = db.cursor()
+names=[]
+
+cur.execute("SELECT * from sample_users")
+for rows in cur.fetchall():
+    names.append(rows)
 
 users = pd.read_csv(filename)
 social_df = DataFrame()
@@ -71,7 +82,7 @@ for column in user_parse_list:
 
         else:
             if column=='dob':
-                temp=ast.literal_eval(user_df[column].iloc[i])
+                temp=ast.literal_eval(i)
                 temp['range_start']=temp['date_range']['start']
                 temp['range_end']=temp['date_range']['end']
                 temp.pop('date_range',None)
