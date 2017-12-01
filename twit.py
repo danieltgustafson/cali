@@ -5,24 +5,29 @@ import json
 import pandas as pd
 from sqlalchemy import create_engine
 import config as cfg
+import sys
+import numpy as np
 
 mysql_eng=cfg.mysql_prod
+db_name = sys.argv[1]
+counts=sys.argv[2]
+write_type=sys.argv[3]
 #if using the dev mysql switch connection params.
 #mysql_eng=cfg.mysql_dev
 
-engine = create_engine('mysql://'+mysql_eng['user']+':'+mysql_eng['pass']+'@'+mysql_eng['host']+':'+mysql_eng['port']+'/'+mysql_eng['db'],encoding='utf8',convert_unicode=True)
+engine = create_engine('mysql://'+mysql_eng['user']+':'+mysql_eng['pass']+'@'+mysql_eng['host']+':'+mysql_eng['port']+'/'+db_name,encoding='utf8',convert_unicode=True)
 main_column_list=['input_user_name','text','lang','tweet_index']
 entity_columns=['hashtags','urls','user_id','user name']
 
 ###MAX NUMBER OF TWEETS TO STORE####
-counts=10
 
 
-db=MySQLdb.connect(host=mysql_eng['host'],user=mysql_eng['user'],passwd=mysql_eng['pass'],db=mysql_eng['db'],charset='utf8',use_unicode=True)
+
+db=MySQLdb.connect(host=mysql_eng['host'],user=mysql_eng['user'],passwd=mysql_eng['pass'],db=db_name,charset='utf8',use_unicode=True)
 cur = db.cursor()
 names=[]
 
-cur.execute("SELECT * from socialdb.sample_users")
+cur.execute("SELECT user_id from user_ids_key where lower(domain) = 'twitter'")
 
 for rows in cur.fetchall():
 	names.append(rows[0])
@@ -33,7 +38,7 @@ j=0
 api = TwitterAPI(consumer_key=cfg.twitter['api_key'], consumer_secret=cfg.twitter['secret'], access_token_key=cfg.twitter['access_token'], 
 	access_token_secret=cfg.twitter['access_secret'])
 for i in names:
-	r=api.request('statuses/user_timeline', {'screen_name':i,'count':counts})
+	r=api.request('statuses/user_timeline', {'user_id':i,'count':counts})
 	json_raw[i]=r.json()
 	#dfs.append(pd.io.json.DataFrame(json_raw[i]))
 	dfs.append(pd.io.json.json_normalize(json_raw[i]))
@@ -70,9 +75,11 @@ for i in range(len(prime)):
 		url_dfs[j]['input_user_name']=prime['input_user_name'][i]
 		url_dfs[j]['tweet_id']=prime.index[i]
 		j+=1
-urls=pd.concat(url_dfs,axis=0,ignore_index=True)
-urls['id']=range(0,len(urls))
-urls=urls.drop('indices',1)
+if url_dfs<>[]:
+	urls=pd.concat(url_dfs,axis=0,ignore_index=True)
+	urls['id']=range(0,len(urls))
+	urls=urls.drop('indices',1)
+	urls.to_sql('twitter_urls',engine,if_exists=write_type,chunksize=100)
 
 
 hash_dfs=[]
@@ -87,9 +94,11 @@ for i in range(len(prime)):
 		hash_dfs[j]['input_user_name']=prime['input_user_name'][i]
 		hash_dfs[j]['tweet_id']=prime.index[i]
 		j+=1
-hashes=pd.concat(hash_dfs,axis=0,ignore_index=True)
-hashes['id']=range(0,len(hashes))
-hashes=hashes.drop('indices',1)
+if hash_dfs<>[]:
+	hashes=pd.concat(hash_dfs,axis=0,ignore_index=True)
+	hashes['id']=range(0,len(hashes))
+	hashes=hashes.drop('indices',1)
+	hashes.to_sql('twitter_hashes',engine,if_exists=write_type,chunksize=100)
 
 loc_dfs=[]
 j=0
@@ -103,14 +112,16 @@ for i in range(len(prime)):
 		loc_dfs[j]['input_user_name']=prime['input_user_name'][i]
 		loc_dfs[j]['tweet_id']=prime.index[i]
 		j+=1
-locations=pd.concat(loc_dfs,axis=0,ignore_index=True)
-locations['id']=range(0,len(locations))
+if loc_dfs<>[]:
+	locations=pd.concat(loc_dfs,axis=0,ignore_index=True)
+	locations['id']=range(0,len(locations))
+	locations.to_sql('twitter_locations',engine,if_exists=write_type,chunksize=100)
 #locations=locations.drop('indices',1)
 
 #prime[main_column_list].to_sql('prime',engine,flavor='mysql',if_exists='replace',chunksize=100)
-prime[main_column_list].to_sql('prime_test',con=engine,if_exists='replace',chunksize=100)
-urls.to_sql('urls',engine,if_exists='append',chunksize=100)
-hashes.to_sql('hashes',engine,if_exists='append',chunksize=100)
-locations.to_sql('locations',engine,if_exists='append',chunksize=100)
+prime[main_column_list].to_sql('twitter_prime',con=engine,if_exists=write_type,chunksize=100)
+
+
+
 
 
